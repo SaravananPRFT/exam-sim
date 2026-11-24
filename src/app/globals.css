@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Code blocks inside question stems and choice text */
+.exam-html pre {
+  background: #1e293b;
+  color: #f1f5f9;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875rem;
+  border-radius: 0.375rem;
+  padding: 0.75rem 1rem;
+  margin: 0.625rem 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  display: block;
+  line-height: 1.6;
+}
+
+.exam-html code {
+  background: #1e293b;
+  color: #f1f5f9;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875em;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+}
+
+.exam-html pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.exam-html p { margin-bottom: 0.5rem; }
+.exam-html p:last-child { margin-bottom: 0; }
+.exam-html ul, .exam-html ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.exam-html li { margin-bottom: 0.25rem; }
+.exam-html strong { font-weight: 600; }
+
+/* ── Print / PDF styles ───────────────────────────────────────────────────── */
+@media print {
+  /* Hide interactive chrome */
+  .no-print { display: none !important; }
+
+  /* White background everywhere */
+  body, * { background: white !important; color: black !important; }
+
+  /* Remove shadows/borders that look bad on paper */
+  .bg-gray-50 { background: white !important; }
+  .shadow-2xl, .shadow { box-shadow: none !important; }
+
+  /* Keep coloured domain bars visible */
+  .bg-green-500, .bg-red-400, .bg-red-500 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Score gauge bar */
+  [style*="width"] { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Don't break a ReviewCard across pages */
+  .review-card { break-inside: avoid; page-break-inside: avoid; }
+
+  /* Domain bars */
+  .domain-bar { break-inside: avoid; }
+
+  /* Score panel always on its own block */
+  .score-panel { break-after: avoid; }
+
+  /* Slightly smaller font so more fits per page */
+  body { font-size: 11pt; }
+
+  /* Keep code blocks readable */
+  .exam-html pre, .exam-html code {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  /* Page margins */
+  @page { margin: 1.5cm 2cm; }
+}
+
+/* Timer pulse animation */
+@keyframes timerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.timer-pulse {
+  animation: timerPulse 0.8s ease-in-out infinite;
+}
