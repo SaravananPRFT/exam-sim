@@ -28,7 +28,9 @@ function ChoiceButton({
   revealed,
   mode,
   disabled,
+  eliminated,
   onSelect,
+  onEliminate,
 }: {
   question: Question
   choiceIdx: number
@@ -36,13 +38,17 @@ function ChoiceButton({
   revealed: boolean
   mode: ExamMode
   disabled: boolean
+  eliminated: boolean
   onSelect: (idx: number) => void
+  onEliminate: (idx: number) => void
 }) {
   const choice = question.choices[choiceIdx]
   if (!choice) return null
 
   const isCorrect = question.correctIndices.includes(choice.idx)
   const showFeedback = mode === 'practice' && revealed
+  // Strikethrough is only visible before feedback is revealed and when not selected
+  const showStrike = eliminated && !showFeedback && !selected
 
   let rowClass =
     'w-full text-left flex items-start gap-3 p-3.5 rounded-lg border-2 transition-all cursor-pointer '
@@ -65,6 +71,9 @@ function ChoiceButton({
       rowClass += 'border-gray-200 bg-gray-50 opacity-60'
       ctrlClass += 'border-gray-300'
     }
+  } else if (showStrike) {
+    rowClass += 'border-gray-200 bg-gray-50 opacity-50'
+    ctrlClass += 'border-gray-200'
   } else if (selected) {
     rowClass += 'border-indigo-500 bg-indigo-50'
     ctrlClass += 'border-indigo-500 bg-indigo-500'
@@ -77,6 +86,7 @@ function ChoiceButton({
     <button
       className={rowClass}
       onClick={() => !disabled && onSelect(choice.idx)}
+      onContextMenu={e => { e.preventDefault(); onEliminate(choice.idx) }}
       disabled={disabled}
     >
       <div className={ctrlClass}>
@@ -100,9 +110,11 @@ function ChoiceButton({
           </svg>
         )}
       </div>
-      <span className="font-semibold text-gray-500 flex-shrink-0 text-sm">{choice.letter}.</span>
+      <span className={`font-semibold flex-shrink-0 text-sm ${showStrike ? 'text-gray-300 line-through' : 'text-gray-500'}`}>
+        {choice.letter}.
+      </span>
       <div
-        className="exam-html flex-1 text-sm text-gray-800 leading-relaxed"
+        className={`exam-html flex-1 text-sm leading-relaxed ${showStrike ? 'text-gray-300 line-through' : 'text-gray-800'}`}
         dangerouslySetInnerHTML={{ __html: choice.text }}
       />
       {showFeedback && isCorrect && (
@@ -233,6 +245,9 @@ export default function ExamPage() {
   const [loading, setLoading] = useState(true)
   const [localAnswers, setLocalAnswers] = useState<Record<string, number[]>>({})
   const [localFlagged, setLocalFlagged] = useState<Set<string>>(new Set())
+  // eliminated is purely visual — never sent to server or affects scoring
+  // key format: `${questionId}-${choiceArrayIndex}`
+  const [eliminated, setEliminated] = useState<Set<string>>(new Set())
   const [currentIdx, setCurrentIdx] = useState(0)
   const [timeLeft, setTimeLeft] = useState(0)
   const [timerHidden, setTimerHidden] = useState(false)
@@ -570,18 +585,39 @@ export default function ExamPage() {
 
               {/* Choices */}
               <div className="space-y-2.5">
-                {q.choices.map((_, ci) => (
-                  <ChoiceButton
-                    key={ci}
-                    question={q}
-                    choiceIdx={ci}
-                    selected={selectedIndices.includes(q.choices[ci]?.idx ?? ci)}
-                    revealed={isRevealed}
-                    mode={mode}
-                    disabled={isRevealed && mode === 'practice'}
-                    onSelect={idx => selectChoice(q, idx)}
-                  />
-                ))}
+                {q.choices.map((_, ci) => {
+                  const elimKey = `${q.id}-${ci}`
+                  return (
+                    <ChoiceButton
+                      key={ci}
+                      question={q}
+                      choiceIdx={ci}
+                      selected={selectedIndices.includes(q.choices[ci]?.idx ?? ci)}
+                      revealed={isRevealed}
+                      mode={mode}
+                      disabled={isRevealed && mode === 'practice'}
+                      eliminated={eliminated.has(elimKey)}
+                      onSelect={idx => {
+                        // Selecting a choice un-eliminates it
+                        setEliminated(prev => {
+                          if (!prev.has(elimKey)) return prev
+                          const next = new Set(prev)
+                          next.delete(elimKey)
+                          return next
+                        })
+                        selectChoice(q, idx)
+                      }}
+                      onEliminate={() => {
+                        setEliminated(prev => {
+                          const next = new Set(prev)
+                          if (next.has(elimKey)) next.delete(elimKey)
+                          else next.add(elimKey)
+                          return next
+                        })
+                      }}
+                    />
+                  )
+                })}
               </div>
 
               {/* Practice mode: Check Answer button */}
