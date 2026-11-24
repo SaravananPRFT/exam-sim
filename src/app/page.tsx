@@ -327,23 +327,32 @@ export default function LobbyPage() {
         </div>
       </header>
 
-      {/* Cert selector (shown only when multiple certs) */}
-      {certs.length > 1 && (
-        <div className="bg-slate-800 px-6 py-2">
-          <div className="max-w-7xl mx-auto flex gap-2 overflow-x-auto">
-            {certs.map(c => (
-              <button
-                key={c.id}
-                onClick={() => setActiveCertId(c.id)}
-                className={`whitespace-nowrap text-xs font-semibold px-4 py-2 rounded-full transition-colors ${
-                  activeCertId === c.id
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
+      {/* Cert selector — always visible; pills are clickable when multiple certs exist */}
+      {certs.length > 0 && (
+        <div className="bg-slate-800 border-b border-slate-700 px-6 py-2">
+          <div className="max-w-7xl mx-auto flex items-center gap-3">
+            <span className="text-slate-500 text-xs font-medium uppercase tracking-widest flex-shrink-0">Certification</span>
+            <div className="flex gap-2 overflow-x-auto">
+              {certs.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => setActiveCertId(c.id)}
+                  disabled={certs.length === 1}
+                  className={`whitespace-nowrap text-xs font-semibold px-4 py-1.5 rounded-full transition-colors disabled:cursor-default ${
+                    activeCertId === c.id
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+              {certs.length === 1 && (
+                <span className="text-slate-600 text-xs self-center italic">
+                  — add more certs to <code className="text-slate-500">data/sets/</code>
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
