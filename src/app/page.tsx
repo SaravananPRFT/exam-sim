@@ -396,10 +396,12 @@ export default function LobbyPage() {
       {certs.length > 0 && (
         <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Certification</span>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">Certification</span>
               {certs.length === 1 && (
-                <span className="text-xs text-gray-300 italic">· add more under <code className="text-gray-400 bg-gray-100 px-1 rounded">data/sets/</code></span>
+                <span className="text-xs text-gray-500">
+                  To add more, drop HTML sets into <code className="font-mono bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">data/sets/&lt;cert-id&gt;/</code>
+                </span>
               )}
             </div>
             <div className="flex gap-3 overflow-x-auto pb-1">
