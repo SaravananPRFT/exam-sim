@@ -157,6 +157,71 @@ function PastAttemptsTab({ attempts }: { attempts: AttemptRecord[] }) {
   )
 }
 
+const CERT_COLORS: Record<string, { accent: string; border: string; activeBorder: string; dot: string; label: string }> = {
+  indigo:  { accent: 'bg-indigo-500',  border: 'border-indigo-100', activeBorder: 'border-indigo-500', dot: 'bg-indigo-500',  label: 'text-indigo-700' },
+  teal:    { accent: 'bg-teal-500',    border: 'border-teal-100',   activeBorder: 'border-teal-500',   dot: 'bg-teal-500',    label: 'text-teal-700'   },
+  orange:  { accent: 'bg-orange-500',  border: 'border-orange-100', activeBorder: 'border-orange-500', dot: 'bg-orange-500',  label: 'text-orange-700' },
+  violet:  { accent: 'bg-violet-500',  border: 'border-violet-100', activeBorder: 'border-violet-500', dot: 'bg-violet-500',  label: 'text-violet-700' },
+  default: { accent: 'bg-gray-400',    border: 'border-gray-200',   activeBorder: 'border-gray-500',   dot: 'bg-gray-500',    label: 'text-gray-700'   },
+}
+
+function CertCard({
+  cert, active, selectable, totalSets, totalQuestions, bestScore, onSelect,
+}: {
+  cert: Certification
+  active: boolean
+  selectable: boolean
+  totalSets?: number
+  totalQuestions?: number
+  bestScore?: { score: number; passed: boolean }
+  onSelect: () => void
+}) {
+  const c = CERT_COLORS[cert.color] ?? CERT_COLORS.default
+  const shortId = cert.name.split('–')[0].split('—')[0].trim()
+  const subtitle = cert.description || cert.name
+
+  return (
+    <button
+      onClick={onSelect}
+      disabled={!selectable}
+      className={`relative group flex flex-col text-left rounded-xl border-2 p-4 pt-5 w-56 flex-shrink-0 bg-white transition-all duration-150
+        ${active
+          ? `${c.activeBorder} shadow-md`
+          : selectable
+            ? `${c.border} hover:border-gray-300 hover:shadow-sm`
+            : `${c.activeBorder} shadow-md cursor-default`
+        }`}
+    >
+      {/* Coloured top accent bar */}
+      <div className={`absolute top-0 inset-x-0 h-1.5 rounded-t-xl ${c.accent}`} />
+
+      {/* Active indicator dot */}
+      {active && <div className={`absolute top-3 right-3 w-2 h-2 rounded-full ${c.dot}`} />}
+
+      <div className={`text-xl font-black tracking-tight ${active ? c.label : 'text-gray-500 group-hover:text-gray-700'}`}>
+        {shortId}
+      </div>
+      <div className="text-xs text-gray-500 leading-snug mt-0.5 flex-1">
+        {subtitle}
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 gap-2">
+        <span className="text-xs text-gray-400">
+          {totalSets != null ? `${totalSets} sets · ${totalQuestions}Q` : '—'}
+        </span>
+        {bestScore ? (
+          <span className={`text-xs font-bold ${bestScore.passed ? 'text-green-600' : 'text-red-500'}`}>
+            {bestScore.score} {bestScore.passed ? '✓' : '✗'}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-300">Not attempted</span>
+        )}
+      </div>
+    </button>
+  )
+}
+
 export default function LobbyPage() {
   const router = useRouter()
   const { attempts } = useHistory()
@@ -327,31 +392,34 @@ export default function LobbyPage() {
         </div>
       </header>
 
-      {/* Cert selector — always visible; pills are clickable when multiple certs exist */}
+      {/* Certification selector strip */}
       {certs.length > 0 && (
-        <div className="bg-slate-800 border-b border-slate-700 px-6 py-2">
-          <div className="max-w-7xl mx-auto flex items-center gap-3">
-            <span className="text-slate-500 text-xs font-medium uppercase tracking-widest flex-shrink-0">Certification</span>
-            <div className="flex gap-2 overflow-x-auto">
-              {certs.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setActiveCertId(c.id)}
-                  disabled={certs.length === 1}
-                  className={`whitespace-nowrap text-xs font-semibold px-4 py-1.5 rounded-full transition-colors disabled:cursor-default ${
-                    activeCertId === c.id
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  {c.name}
-                </button>
-              ))}
+        <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Certification</span>
               {certs.length === 1 && (
-                <span className="text-slate-600 text-xs self-center italic">
-                  — add more certs to <code className="text-slate-500">data/sets/</code>
-                </span>
+                <span className="text-xs text-gray-300 italic">· add more under <code className="text-gray-400 bg-gray-100 px-1 rounded">data/sets/</code></span>
               )}
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {certs.map(cert => {
+                const certAttempts = attempts.filter(a => a.certId === cert.id)
+                const best = certAttempts.sort((a, b) => b.scaledScore - a.scaledScore)[0]
+                const certSets = cert.id === activeCertId ? rawSets : undefined
+                return (
+                  <CertCard
+                    key={cert.id}
+                    cert={cert}
+                    active={cert.id === activeCertId}
+                    selectable={certs.length > 1}
+                    totalSets={certSets?.length}
+                    totalQuestions={certSets?.reduce((n, s) => n + s.questionCount, 0)}
+                    bestScore={best ? { score: best.scaledScore, passed: best.passed } : undefined}
+                    onSelect={() => setActiveCertId(cert.id)}
+                  />
+                )
+              })}
             </div>
           </div>
         </div>
