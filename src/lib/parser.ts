@@ -31,10 +31,8 @@ function normalizeDomain(raw: string): Domain {
   return 'Unknown'
 }
 
-export function parseSetFile(filePath: string): { set: QuestionSet; questions: Question[] } {
-  const html = fs.readFileSync(filePath, 'utf-8')
+export function parseSetFromHtml(html: string, filename: string): { set: QuestionSet; questions: Question[] } {
   const $ = cheerio.load(html)
-  const filename = path.basename(filePath)
   const setId = deriveSetId(filename)
   const title = deriveTitle(filename)
 
@@ -118,6 +116,12 @@ export function parseSetFile(filePath: string): { set: QuestionSet; questions: Q
   }
 
   return { set, questions }
+}
+
+export function parseSetFile(filePath: string): { set: QuestionSet; questions: Question[] } {
+  const html = fs.readFileSync(filePath, 'utf-8')
+  const filename = path.basename(filePath)
+  return parseSetFromHtml(html, filename)
 }
 
 export function parseAllSets(setsDir: string): { sets: QuestionSet[]; questions: Question[] } {

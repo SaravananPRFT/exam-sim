@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ certId: string }> },
 ) {
   const { certId } = await params
-  return NextResponse.json({ sets: getAllSets(certId) })
+  return NextResponse.json({ sets: await getAllSets(certId) })
 }
 
 export async function POST(
@@ -14,6 +14,6 @@ export async function POST(
   { params }: { params: Promise<{ certId: string }> },
 ) {
   const { certId } = await params
-  const cache = rescanSets(certId)
+  const cache = await rescanSets(certId)
   return NextResponse.json({ sets: cache.sets, rescanned: true })
 }

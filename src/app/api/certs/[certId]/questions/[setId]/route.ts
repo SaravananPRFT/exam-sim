@@ -7,7 +7,7 @@ export async function GET(
 ) {
   const { certId, setId } = await params
   const questions = setId === 'all'
-    ? getAllQuestions(certId)
-    : getQuestionsForSet(certId, setId)
+    ? await getAllQuestions(certId)
+    : await getQuestionsForSet(certId, setId)
   return NextResponse.json({ questions })
 }

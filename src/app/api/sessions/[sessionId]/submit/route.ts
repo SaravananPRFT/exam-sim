@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params
-  const session = getSession(sessionId)
+  const session = await getSession(sessionId)
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   if (session.submittedAt) {
     return NextResponse.json({ result: session.result })
@@ -18,10 +18,10 @@ export async function POST(
 
   const result = calculateResult(session.questions, session.answers, timeTakenSeconds)
 
-  updateSession(sessionId, { result, submittedAt })
+  await updateSession(sessionId, { result, submittedAt })
 
-  const completed = getSession(sessionId)
-  if (completed) persistSession(completed)
+  const completed = await getSession(sessionId)
+  if (completed) await persistSession(completed)
 
   return NextResponse.json({ result })
 }

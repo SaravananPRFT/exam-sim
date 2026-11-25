@@ -9,6 +9,8 @@
     "verify": "tsx scripts/verify-parse.ts"
   },
   "dependencies": {
+    "@vercel/blob": "^2.9.0",
+    "@vercel/kv": "^3.0.0",
     "cheerio": "^1.0.0",
     "next": "15.3.3",
     "react": "^19.0.0",
