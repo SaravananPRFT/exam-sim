@@ -26,6 +26,7 @@ const CERT_NAMES: Record<string, { name: string; description: string; color: str
   'ccar-f':        { name: 'CCAR-F – Foundations',       description: 'Claude Certified Architect – Foundations', color: 'indigo' },
   'ccar-p':        { name: 'CCAR-P – Practitioner',      description: 'Claude Certified Architect – Practitioner', color: 'violet' },
   'cc-developer':  { name: 'CC Developer Associate',     description: 'Claude Certified Developer Associate',      color: 'teal' },
+  'ccad-f':        { name: 'CCAD-F – Foundations',       description: 'Claude Certified AI Developer – Foundations', color: 'emerald' },
 }
 
 export function getCerts(): Certification[] {
