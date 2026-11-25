@@ -56,12 +56,14 @@ export async function POST(req: Request) {
 
   let pool: Question[]
   if (questionIds && questionIds.length > 0) {
-    pool = getQuestionsByIds(certId, questionIds)
+    pool = await getQuestionsByIds(certId, questionIds)
   } else if (setIds.length > 0) {
-    pool = setIds.flatMap(id => getQuestionsForSet(certId, id))
+    const perSet = await Promise.all(setIds.map(id => getQuestionsForSet(certId, id)))
+    pool = perSet.flat()
   } else {
-    const allSets = getAllSets(certId)
-    pool = allSets.flatMap(s => getQuestionsForSet(certId, s.id))
+    const allSets = await getAllSets(certId)
+    const perSet = await Promise.all(allSets.map(s => getQuestionsForSet(certId, s.id)))
+    pool = perSet.flat()
   }
 
   if (questionCount && questionCount < pool.length) {
@@ -89,11 +91,11 @@ export async function POST(req: Request) {
     startedAt: new Date().toISOString(),
   }
 
-  saveSession(session)
+  await saveSession(session)
 
   return NextResponse.json({ session })
 }
 
 export async function GET() {
-  return NextResponse.json({ sessions: getAllSessions() })
+  return NextResponse.json({ sessions: await getAllSessions() })
 }

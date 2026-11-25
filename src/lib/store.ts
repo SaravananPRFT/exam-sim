@@ -1,10 +1,24 @@
 import fs from 'fs'
 import path from 'path'
 import type { Question, QuestionSet, ExamSession, Certification } from '@/types/exam'
-import { parseAllSets } from './parser'
+import { parseAllSets, parseSetFromHtml } from './parser'
 
 const SETS_DIR = path.join(process.cwd(), 'data', 'sets')
 const SESSIONS_DIR = path.join(process.cwd(), 'data', 'sessions')
+
+const KV_ENABLED = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
+const BLOB_ENABLED = !!(process.env.BLOB_READ_WRITE_TOKEN)
+
+// Lazy-load @vercel/kv only when env vars are present to avoid import errors in local dev
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _kv: any = null
+async function getKv() {
+  if (!_kv) {
+    const mod = await import('@vercel/kv')
+    _kv = mod.kv
+  }
+  return _kv
+}
 
 // ── Certification registry ────────────────────────────────────────────────────
 
@@ -12,6 +26,7 @@ const CERT_NAMES: Record<string, { name: string; description: string; color: str
   'ccar-f':        { name: 'CCAR-F – Foundations',       description: 'Claude Certified Architect – Foundations', color: 'indigo' },
   'ccar-p':        { name: 'CCAR-P – Practitioner',      description: 'Claude Certified Architect – Practitioner', color: 'violet' },
   'cc-developer':  { name: 'CC Developer Associate',     description: 'Claude Certified Developer Associate',      color: 'teal' },
+  'ccad-f':        { name: 'CCAD-F – Foundations',       description: 'Claude Certified AI Developer – Foundations', color: 'emerald' },
 }
 
 export function getCerts(): Certification[] {
@@ -51,11 +66,7 @@ function getCacheMap(): Map<string, QuestionCache> {
   return globalThis.__examQCaches
 }
 
-function buildCache(certId: string): QuestionCache {
-  const certDir = path.join(SETS_DIR, certId)
-  const { sets, questions } = parseAllSets(certDir)
-  // stamp certId onto every set
-  const stampedSets = sets.map(s => ({ ...s, certId }))
+function buildCacheIndex(sets: QuestionSet[], questions: Question[]): QuestionCache {
   const byId = new Map<string, Question>()
   const bySetId = new Map<string, Question[]>()
   for (const q of questions) {
@@ -63,39 +74,77 @@ function buildCache(certId: string): QuestionCache {
     if (!bySetId.has(q.setId)) bySetId.set(q.setId, [])
     bySetId.get(q.setId)!.push(q)
   }
-  return { sets: stampedSets, questions, byId, bySetId, timestamp: new Date().toISOString() }
+  return { sets, questions, byId, bySetId, timestamp: new Date().toISOString() }
 }
 
-export function getQuestionCache(certId: string): QuestionCache {
+async function buildCache(certId: string): Promise<QuestionCache> {
+  const certDir = path.join(SETS_DIR, certId)
+  const diskResult = fs.existsSync(certDir)
+    ? parseAllSets(certDir)
+    : { sets: [], questions: [] }
+
+  const stampedSets = diskResult.sets.map(s => ({ ...s, certId }))
+  let allSets = stampedSets
+  let allQuestions = diskResult.questions
+
+  // Fetch blob-stored sets when running on Vercel
+  if (BLOB_ENABLED && KV_ENABLED) {
+    try {
+      const kv = await getKv()
+      const blobList = ((await kv.get(`blobs:${certId}`)) ?? []) as Array<{ url: string; filename: string }>
+      const blobResults = await Promise.allSettled(
+        blobList.map(async ({ url, filename }) => {
+          const res = await fetch(url)
+          if (!res.ok) throw new Error(`fetch ${url} → ${res.status}`)
+          const html = await res.text()
+          const { set, questions } = parseSetFromHtml(html, filename)
+          return { set: { ...set, certId }, questions }
+        })
+      )
+      for (const r of blobResults) {
+        if (r.status === 'fulfilled') {
+          allSets = [...allSets, r.value.set]
+          allQuestions = [...allQuestions, ...r.value.questions]
+        }
+      }
+    } catch {
+      // non-fatal: blob sets unavailable, continue with disk sets only
+    }
+  }
+
+  return buildCacheIndex(allSets, allQuestions)
+}
+
+export async function getQuestionCache(certId: string): Promise<QuestionCache> {
   const map = getCacheMap()
-  if (!map.has(certId)) map.set(certId, buildCache(certId))
+  if (!map.has(certId)) map.set(certId, await buildCache(certId))
   return map.get(certId)!
 }
 
-export function rescanSets(certId: string): QuestionCache {
-  const cache = buildCache(certId)
+export async function rescanSets(certId: string): Promise<QuestionCache> {
+  const cache = await buildCache(certId)
   getCacheMap().set(certId, cache)
   return cache
 }
 
-export function getAllSets(certId: string): QuestionSet[] {
-  return getQuestionCache(certId).sets
+export async function getAllSets(certId: string): Promise<QuestionSet[]> {
+  return (await getQuestionCache(certId)).sets
 }
 
-export function getAllQuestions(certId: string): Question[] {
-  return getQuestionCache(certId).questions
+export async function getAllQuestions(certId: string): Promise<Question[]> {
+  return (await getQuestionCache(certId)).questions
 }
 
-export function getQuestionsForSet(certId: string, setId: string): Question[] {
-  return getQuestionCache(certId).bySetId.get(setId) ?? []
+export async function getQuestionsForSet(certId: string, setId: string): Promise<Question[]> {
+  return (await getQuestionCache(certId)).bySetId.get(setId) ?? []
 }
 
-export function getQuestionById(certId: string, id: string): Question | undefined {
-  return getQuestionCache(certId).byId.get(id)
+export async function getQuestionById(certId: string, id: string): Promise<Question | undefined> {
+  return (await getQuestionCache(certId)).byId.get(id)
 }
 
-export function getQuestionsByIds(certId: string, ids: string[]): Question[] {
-  const cache = getQuestionCache(certId)
+export async function getQuestionsByIds(certId: string, ids: string[]): Promise<Question[]> {
+  const cache = await getQuestionCache(certId)
   return ids.flatMap(id => {
     const q = cache.byId.get(id)
     return q ? [q] : []
@@ -126,14 +175,27 @@ function loadSessionFromDisk(id: string): ExamSession | undefined {
   }
 }
 
-export function persistSession(session: ExamSession): void {
-  fs.mkdirSync(SESSIONS_DIR, { recursive: true })
-  fs.writeFileSync(sessionFilePath(session.id), JSON.stringify(session), 'utf-8')
+export async function saveSession(session: ExamSession): Promise<void> {
+  _sessions.set(session.id, session)
+  if (KV_ENABLED) {
+    const kv = await getKv()
+    await kv.set(`session:${session.id}`, session)
+    await kv.sadd('sessions:index', session.id)
+  }
 }
 
-export function getSession(id: string): ExamSession | undefined {
+export async function getSession(id: string): Promise<ExamSession | undefined> {
   const mem = _sessions.get(id)
   if (mem) return mem
+  if (KV_ENABLED) {
+    const kv = await getKv()
+    const data = (await kv.get(`session:${id}`)) as ExamSession | null
+    if (data) {
+      _sessions.set(id, data)
+      return data
+    }
+    return undefined
+  }
   const disk = loadSessionFromDisk(id)
   if (disk) {
     _sessions.set(id, disk)
@@ -142,22 +204,40 @@ export function getSession(id: string): ExamSession | undefined {
   return undefined
 }
 
-export function getAllSessions(): ExamSession[] {
+export async function getAllSessions(): Promise<ExamSession[]> {
+  if (KV_ENABLED) {
+    const kv = await getKv()
+    const ids = ((await kv.smembers('sessions:index')) ?? []) as string[]
+    const sessions = await Promise.all(ids.map((id: string) => kv.get(`session:${id}`) as Promise<ExamSession | null>))
+    const valid = sessions.filter(Boolean) as ExamSession[]
+    for (const s of valid) _sessions.set(s.id, s)
+    return valid
+  }
   return Array.from(_sessions.values())
 }
 
-export function saveSession(session: ExamSession): void {
-  _sessions.set(session.id, session)
-}
-
-export function updateSession(
+export async function updateSession(
   id: string,
   updates: Partial<Omit<ExamSession, 'id'>>,
-): boolean {
-  const existing = _sessions.get(id)
+): Promise<boolean> {
+  const existing = await getSession(id)
   if (!existing) return false
   const updated = { ...existing, ...updates }
   _sessions.set(id, updated)
-  if (updated.submittedAt) persistSession(updated)
+  if (KV_ENABLED) {
+    const kv = await getKv()
+    await kv.set(`session:${id}`, updated)
+  }
   return true
+}
+
+export async function persistSession(session: ExamSession): Promise<void> {
+  if (KV_ENABLED) {
+    const kv = await getKv()
+    await kv.set(`session:${session.id}`, session)
+    await kv.sadd('sessions:index', session.id)
+  } else {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true })
+    fs.writeFileSync(sessionFilePath(session.id), JSON.stringify(session), 'utf-8')
+  }
 }
